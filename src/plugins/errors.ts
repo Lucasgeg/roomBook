@@ -1,5 +1,6 @@
 import { FastifyError } from "fastify";
 import fp from "fastify-plugin";
+import { Type, Static } from "@fastify/type-provider-typebox";
 
 export default fp(async (app) => {
   app.setErrorHandler((error: FastifyError, _request, reply) => {
@@ -15,6 +16,10 @@ export default fp(async (app) => {
       message: "Erreur interne",
     });
   });
+
+  app.setNotFoundHandler(() => {
+    throw new HttpError(404, "this route doesn't exist");
+  });
 });
 
 export class HttpError extends Error {
@@ -25,3 +30,11 @@ export class HttpError extends Error {
     super(message);
   }
 }
+
+export const ErrorSchema = Type.Object({
+  statusCode: Type.Number(),
+  error: Type.String(),
+  message: Type.String(),
+});
+
+export type ErrorSchemaType = Static<typeof ErrorSchema>;

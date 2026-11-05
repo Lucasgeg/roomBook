@@ -4,6 +4,7 @@ import { BookingBody, Booking, BookingBodyType } from "../schema/booking.ts";
 import { Type } from "typebox";
 import { roomExists } from "./rooms.ts";
 import { BookingType } from "../schema/booking.ts";
+import { ErrorSchema, HttpError } from "../plugins/errors.ts";
 
 let bookings: BookingType[] = [
   {
@@ -42,23 +43,21 @@ export const bookingsRoutes: FastifyPluginAsync = async (app) => {
         }),
         response: {
           200: Booking,
-          404: Type.Object({
-            error: Type.String(),
-          }),
+          404: ErrorSchema,
         },
       },
     },
     async (request, reply) => {
       const { id } = request.params;
       const booking = bookings.find((r) => r.id === Number(id));
-      if (!booking) return reply.code(404).send({ error: "Booking not found" });
+      if (!booking) throw new HttpError(404, "Booking not found");
       return booking;
     },
   );
 
   app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
     const booking = bookings.find((r) => r.id === Number(request.params.id));
-    if (!booking) return reply.code(404).send({ error: "Booking not found" });
+    if (!booking) throw new HttpError(404, "Booking not found");
     bookings = bookings.filter((r) => r.id !== booking.id);
     return reply.code(204).send();
   });
@@ -73,15 +72,13 @@ export const bookingsRoutes: FastifyPluginAsync = async (app) => {
         body: Type.Partial(BookingBody, { minProperties: 1 }),
         response: {
           200: Booking,
-          404: Type.Object({
-            error: Type.String(),
-          }),
+          404: ErrorSchema,
         },
       },
     },
     async (request, reply) => {
       const booking = bookings.find((r) => r.id === Number(request.params.id));
-      if (!booking) return reply.code(404).send({ error: "Booking not found" });
+      if (!booking) throw new HttpError(404, "Booking not found");
       Object.assign(booking, request.body);
       return booking;
     },
@@ -94,21 +91,17 @@ export const bookingsRoutes: FastifyPluginAsync = async (app) => {
         body: BookingBody,
         response: {
           201: Booking,
-          400: Type.Object({
-            error: Type.String(),
-          }),
+          400: ErrorSchema,
         },
       },
     },
     async (request, reply) => {
       const { roomId, startsAt, endsAt } = request.body;
       if (new Date(endsAt) <= new Date(startsAt)) {
-        return reply
-          .code(400)
-          .send({ error: "endsAt must be after startsAt" });
+        throw new HttpError(400, "endsAt must be after startsAt");
       }
       if (!roomExists(roomId)) {
-        return reply.code(400).send({ error: "Room does not exist" });
+        throw new HttpError(400, "Room does not exist");
       }
       const booking: BookingType = {
         id: nextId,

@@ -2,7 +2,7 @@ import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { FastifyPluginAsync } from "fastify";
 import { RoomType, RoomBody, Room } from "../schema/room.ts";
 import { Type } from "typebox";
-import { HttpError } from "../plugins/errors.ts";
+import { ErrorSchema, HttpError } from "../plugins/errors.ts";
 
 let rooms: RoomType[] = [
   { id: 1, name: "A101", capacity: 30 },
@@ -49,9 +49,7 @@ export const roomsRoutes: FastifyPluginAsync = async (app) => {
         }),
         response: {
           200: Room,
-          404: Type.Object({
-            error: Type.String(),
-          }),
+          404: ErrorSchema,
         },
       },
     },
@@ -65,12 +63,26 @@ export const roomsRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
-    const room = rooms.find((r) => r.id === Number(request.params.id));
-    if (!room) return reply.code(404).send({ error: "Room not found" });
-    rooms = rooms.filter((r) => r.id !== room.id);
-    return reply.code(200).send(rooms);
-  });
+  typed.delete(
+    "/:id",
+    {
+      schema: {
+        params: Type.Object({
+          id: Type.String({ minLength: 1 }),
+        }),
+        response: {
+          204: Type.Null(),
+          404: ErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const room = rooms.find((r) => r.id === Number(request.params.id));
+      if (!room) throw new HttpError(404, "Room not found");
+      rooms = rooms.filter((r) => r.id !== room.id);
+      return;
+    },
+  );
 
   typed.patch(
     "/:id",
@@ -82,15 +94,13 @@ export const roomsRoutes: FastifyPluginAsync = async (app) => {
         body: Type.Partial(RoomBody, { minProperties: 1 }),
         response: {
           200: Room,
-          404: Type.Object({
-            error: Type.String(),
-          }),
+          404: ErrorSchema,
         },
       },
     },
     async (request, reply) => {
       const room = rooms.find((r) => r.id === Number(request.params.id));
-      if (!room) return reply.code(404).send({ error: "Room not found" });
+      if (!room) throw new HttpError(404, "Room not found");
       Object.assign(room, request.body);
       return room;
     },
